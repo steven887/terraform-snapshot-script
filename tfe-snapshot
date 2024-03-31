@@ -1,0 +1,142 @@
+#!/bin/bash
+
+appsdir="tfe-backup"
+payloadfile="$HOME/$appsdir/payload/payload.json"
+
+function PAYLOAD(){
+	
+read -p "Input Your Password for payload: " payloadvalue
+}
+
+
+if [ -d "$appsdir" ]; then
+	cd $appsdir/apps
+	#echo "directory already exist"
+else
+	echo "Installation Process..."
+	sleep 1
+	echo -e "Creating Application Directory..."
+	mkdir -p $HOME/$appsdir/apps
+	sleep 1
+	echo -e "Application Directory Created..."
+	echo -e "Creating Backup Directory..."
+	mkdir -p $HOME/$appsdir/backup 
+	sleep 1
+	echo -e "Backup Directory Created..."
+	echo -e "Creating Payload Directory..."
+	mkdir -p $HOME/$appsdir/payload
+	sleep 1
+	echo -e "Directory Payload Created..."
+	echo -e "Creating Payload File..."
+	touch $HOME/$appsdir/payload/payload.json
+	sleep 1
+	
+	# Payload function here :
+	PAYLOAD	 
+	echo -e "Payload File Created..."
+
+cat <<EOF > "$payloadfile"
+{
+  "password":"$payloadvalue"
+}
+EOF
+	sleep 2
+	echo -e "Installing tfe-snapshot.."
+		
+	#echo "directory not found"
+fi
+
+cat << 'EOF' > "tfe-snapshot" 
+#!/bin/bash
+
+if [ "$#" == 0 ]; then
+
+	echo -e "\nUSAGE:\n tfe-snapshot [-b] [-r]	
+	\ntry tfe-snapshot -h for more information\n"
+	exit 1
+fi
+
+BACKUPDIR="$HOME/tfe-backup/backup"
+PAYLOADDIR="$HOME/tfe-backup/payload"
+LATESTBACKUP="$(ls -lrth $BACKUPDIR | tail -n1 | awk '{print $NF}')"
+
+BACKUPTOKEN="$(cat /opt/terraform/settings.json | grep -A 1 '"backup_token"' | grep -o '"value": "[^"]*' | sed 's/"value": "//')"
+
+#echo $TOKENBACKUP
+
+function HELP(){
+
+echo -e "\nUSAGE:\n tfe-snapshot [-b] [-r]	
+\ntry tfe-snapshot -h for more information\n"
+echo -e "
+Arguments:\n
+-b backup \t use this option for backup terraform enterprise configuration
+-r restore \t use this option for restore terraform from latest backup
+"
+}
+
+function SHOWVERS(){
+	echo -e tfe-snapshot 0.1.0
+	}
+
+function BACKUP(){
+
+curl -k \
+--header "Authorization: Bearer $BACKUPTOKEN" \
+--request POST \
+--data @$PAYLOADDIR/payload.json \
+--output $BACKUPDIR/backup-$(date +%d%m%y-%H:%M:%S).blob \
+https://Your-Terraform-Domain/_backup/api/v1/backup
+
+}
+
+
+function RESTORE(){
+
+curl -k \
+--header "Authorization: Bearer $BACKUPTOKEN" \
+--request POST \
+--form config=@$PAYLOADDIR/payload.json \
+--form snapshot=@$BACKUPDIR/$LATESTBACKUP \
+https://Your-Terraform-Domain/_backup/api/v1/restore
+
+}
+
+
+while getopts "hbrv" o; do
+    case "${o}" in
+	h) 
+	  HELP
+	  ;;
+	b)
+	  BACKUP
+	  ;;
+	r)
+	 RESTORE
+	 ;;
+	v)
+	 SHOWVERS
+	 ;;
+	?)
+	echo -e "\nUSAGE:\n tfe-snapshot [-b] [-r]	
+	\ntry tfe-snapshot -h for more information\n"
+	exit 1
+	;;
+    esac
+done
+		
+
+
+
+#BACKUP
+#echo $BACKUPDIR/$LATESTBACKUP
+#RESTORE
+
+EOF
+
+chmod +x tfe-snapshot
+mv tfe-snapshot $HOME/$appsdir/apps
+sleep 1
+sudo ln -s $HOME/$appsdir/apps/tfe-snapshot /bin/tfe-snapshot
+sleep 2
+echo -e "Installation Success..!!\nDone."
