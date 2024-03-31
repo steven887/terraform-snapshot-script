@@ -46,7 +46,7 @@ EOF
 	#echo "directory not found"
 fi
 
-cat << 'EOF' > "$HOME/$appsdir/apps/tfe-snapshot" 
+cat << 'EOF' > "tfe-snapshot" 
 #!/bin/bash
 
 if [ "$#" == 0 ]; then
